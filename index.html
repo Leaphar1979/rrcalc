@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RRCalc – Calculadora Risco/Recompensa (PWA)</title>
+  <meta name="description" content="Calculadora de Risco/Recompensa para Futuros (padrão MEXC)." />
+  <meta name="theme-color" content="#0b1116" />
+
+  <!-- PWA + Ícones -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" />
+
+  <!-- iOS Standalone -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <style>
+    :root {
+      --bg:#0b1116; --card:#111a22; --muted:#7b8a97; --text:#e7eef5;
+      --accent:#17c684; --danger:#ff6b6b; --border:#1f2a34; --focus:#2dd4bf;
+    }
+    *{ box-sizing:border-box }
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:500 16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    }
+    .wrap{ max-width:960px; margin:0 auto; padding:20px }
+    h1{ font-size:22px; margin:0 0 8px 0 }
+    .muted{ color:var(--muted); font-size:13px }
+
+    .grid{ display:grid; gap:12px }
+    @media(min-width:770px){ .grid{ grid-template-columns:1fr 1fr } }
+
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px }
+    label{ display:block; font-size:13px; color:var(--muted); margin-bottom:6px }
+    input,select{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--border);
+      background:#0f1720; color:var(--text); outline:none;
+    }
+    input:focus,select:focus{ border-color:var(--focus); box-shadow:0 0 0 3px #2dd4bf33 }
+    .row{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px }
+    button{ cursor:pointer; border:none; border-radius:12px; padding:10px 14px; background:#1a2530; color:var(--text) }
+    button.primary{ background:var(--accent); color:#062b1a; font-weight:700 }
+
+    .kpi{ display:flex; justify-content:space-between; align-items:center;
+      padding:10px 12px; border:1px dashed var(--border); border-radius:12px }
+    .kpi strong{ font-size:18px }
+    .accent{ color:var(--accent) } .danger{ color:var(--danger) }
+
+    .table{ width:100%; border-collapse:collapse; margin-top:10px }
+    .table th,.table td{ border-bottom:1px solid var(--border); padding:10px 8px; text-align:right }
+    .table th:first-child,.table td:first-child{ text-align:left }
+
+    .footer{ margin-top:16px; font-size:13px; color:var(--muted) }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>RRCalc – Calculadora Risco/Recompensa</h1>
+    <div class="muted">Formato numérico MEXC: <code>123370.00</code> • <code>0.9414</code></div>
+
+    <div class="grid" style="margin-top:12px">
+      <div class="card">
+        <h2 style="margin-top:0">Entradas</h2>
+        <div class="row">
+          <div>
+            <label>Margem (USDT)</label>
+            <input id="margin" type="number" step="0.01" value="20">
+          </div>
+          <div>
+            <label>Alavancagem (×)</label>
+            <input id="leverage" type="number" step="1" min="1" value="10">
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>Preço de Entrada</label>
+            <input id="entry" type="number" step="0.00000001" value="1.0000">
+          </div>
+          <div>
+            <label>Direção</label>
+            <select id="side">
+              <option value="LONG" selected>LONG</option>
+              <option value="SHORT">SHORT</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>TP movimento (%)</label>
+            <input id="tpPct" type="number" step="0.01" value="5">
+          </div>
+          <div>
+            <label>SL movimento (%)</label>
+            <input id="slPct" type="number" step="0.01" value="3">
+          </div>
+        </div>
+        <div class="btns">
+          <button class="primary" id="calcBtn">Calcular</button>
+          <button id="resetBtn">Reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top:0">Saídas (automático)</h2>
+        <div class="kpi"><span>Exposição (USDT)</span><strong id="exposure">—</strong></div>
+        <div class="kpi"><span>Mov. de liquidação aprox. (%)</span><strong id="liq">—</strong></div>
+
+        <div class="row" style="margin-top:10px">
+          <div class="kpi"><span>Preço TP</span><strong class="accent" id="tpPrice">—</strong></div>
+          <div class="kpi"><span>Preço SL</span><strong class="danger" id="slPrice">—</strong></div>
+        </div>
+
+        <table class="table">
+          <tr><th>Métrica</th><th>Valor</th></tr>
+          <tr><td>Lucro absoluto no TP (USDT)</td><td id="tpAbs">—</td></tr>
+          <tr><td>Lucro relativo sobre a margem</td><td id="tpRel">—</td></tr>
+          <tr><td>Perda absoluta no SL (USDT)</td><td id="slAbs">—</td></tr>
+          <tr><td>Perda relativa sobre a margem</td><td id="slRel">—</td></tr>
+          <tr><td><strong>Relação Risco:Recompensa (R:R)</strong></td><td id="rr">—</td></tr>
+        </table>
+
+        <div class="footer">
+          <ul>
+            <li>Use ponto decimal (ex.: 123370.00 ou 0.9414).</li>
+            <li>R:R = Recompensa (lucro no TP) ÷ Risco (perda no SL). Ideal ≥ 1:2.</li>
+            <li>Mov. de liquidação ≈ 1 ÷ alavancagem (pode variar por manutenção/funding).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtMoney = (n) => isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    const fmtPct = (n) => isFinite(n) ? (n*100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' : '—';
+    const getPrecision = () => { const s=$('entry').value.trim(); const i=s.indexOf('.'); return i===-1?2:Math.min(8, s.length - i - 1); };
+    const fmtPrice = (n) => isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: getPrecision(), maximumFractionDigits: getPrecision() }) : '—';
+
+    function calc(){
+      const margin = parseFloat($('margin').value);
+      const lev    = parseFloat($('leverage').value);
+      const entry  = parseFloat($('entry').value);
+      const side   = $('side').value;
+      const tpPct  = parseFloat($('tpPct').value)/100;
+      const slPct  = parseFloat($('slPct').value)/100;
+      if([margin,lev,entry,tpPct,slPct].some(x=>!isFinite(x)) || margin<=0 || lev<=0 || entry<=0) return;
+
+      const exposure = margin * lev;
+      const liqMove  = 1 / lev; // aproximação
+
+      const tpPrice  = side==='LONG' ? entry*(1+tpPct) : entry*(1-tpPct);
+      const slPrice  = side==='LONG' ? entry*(1-slPct) : entry*(1+slPct);
+
+      const tpAbs    = exposure * tpPct;
+      const slAbs    = -exposure * slPct;
+
+      $('exposure').textContent = fmtMoney(exposure);
+      $('liq').textContent      = fmtPct(liqMove);
+      $('tpPrice').textContent  = fmtPrice(tpPrice);
+      $('slPrice').textContent  = fmtPrice(slPrice);
+      $('tpAbs').textContent    = fmtMoney(tpAbs);
+      $('tpRel').textContent    = fmtPct(tpAbs / margin);
+      $('slAbs').textContent    = fmtMoney(slAbs);
+      $('slRel').textContent    = fmtPct(slAbs / margin);
+      $('rr').textContent       = '1 : ' + (Math.abs(tpAbs) / Math.abs(slAbs)).toFixed(2);
+
+      // salvar padrão local
+      localStorage.setItem('rrcalc', JSON.stringify({
+        margin, lev, entry, side, tp: tpPct*100, sl: slPct*100
+      }));
+    }
+
+    $('calcBtn').addEventListener('click', calc);
+    $('resetBtn').addEventListener('click', ()=>{
+      $('margin').value=20; $('leverage').value=10; $('entry').value=1.0000; $('side').value='LONG';
+      $('tpPct').value=5; $('slPct').value=3; calc();
+    });
+
+    window.addEventListener('load', ()=>{
+      try{
+        const saved = JSON.parse(localStorage.getItem('rrcalc')||'null');
+        if(saved){
+          $('margin').value=saved.margin; $('leverage').value=saved.lev; $('entry').value=saved.entry;
+          $('side').value=saved.side; $('tpPct').value=saved.tp; $('slPct').value=saved.sl;
+        }
+      }catch{}
+      calc();
+      if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    });
+  </script>
+</body>
+</html>
